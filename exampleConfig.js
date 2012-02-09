@@ -22,6 +22,9 @@ Optional Variables:
   percentThreshold: for time information, calculate the Nth percentile
                     [%, default: 90]
 
+  statsPrefix:      prefix for stats in graphite (eg, with statsPrefix:"foo",
+                    metric "bar" will become "foo.bar" in graphite). can also
+                    be any expression resolving to a string.
 */
 {
   graphitePort: 2003

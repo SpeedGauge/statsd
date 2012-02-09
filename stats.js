@@ -140,11 +140,13 @@ config.configFile(process.argv[2], function (config, oldConfig) {
       var ts = Math.round(new Date().getTime() / 1000);
       var numStats = 0;
       var key;
+      var pfx = (config.statsPrefix || "stats") + ".";
 
       for (key in counters) {
         var value = counters[key] / (flushInterval / 1000);
-        var message = 'stats.' + key + ' ' + value + ' ' + ts + "\n";
-        message += 'stats_counts.' + key + ' ' + counters[key] + ' ' + ts + "\n";
+        var message = pfx + key + ' ' + value + ' ' + ts + "\n";
+        // historically, this one is stored at the same level as stats.*
+        message += (config.statsPrefix || "stats") + "_counts." + key + ' ' + counters[key] + ' ' + ts + "\n";
         statString += message;
         counters[key] = 0;
 
@@ -180,18 +182,19 @@ config.configFile(process.argv[2], function (config, oldConfig) {
           timers[key] = [];
 
           var message = "";
-          message += 'stats.timers.' + key + '.mean ' + mean + ' ' + ts + "\n";
-          message += 'stats.timers.' + key + '.upper ' + max + ' ' + ts + "\n";
-          message += 'stats.timers.' + key + '.upper_' + pctThreshold + ' ' + maxAtThreshold + ' ' + ts + "\n";
-          message += 'stats.timers.' + key + '.lower ' + min + ' ' + ts + "\n";
-          message += 'stats.timers.' + key + '.count ' + count + ' ' + ts + "\n";
+          message += pfx + 'timers.' + key + '.mean ' + mean + ' ' + ts + "\n";
+          message += pfx + 'timers.' + key + '.upper ' + max + ' ' + ts + "\n";
+          message += pfx + 'timers.' + key + '.upper_' + pctThreshold + ' ' + maxAtThreshold + ' ' + ts + "\n";
+          message += pfx + 'timers.' + key + '.lower ' + min + ' ' + ts + "\n";
+          message += pfx + 'timers.' + key + '.count ' + count + ' ' + ts + "\n";
           statString += message;
 
           numStats += 1;
         }
       }
 
-      statString += 'statsd.numStats ' + numStats + ' ' + ts + "\n";
+      // historically called "statsd" instead of "stats"
+      statString += (config.statsPrefix || "statsd") + '.numStats ' + numStats + ' ' + ts + "\n";
       
       if (config.graphiteHost) {
         try {
