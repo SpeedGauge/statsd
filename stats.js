@@ -106,6 +106,9 @@ config.configFile(process.argv[2], function (config, oldConfig) {
         if (config.dumpMessages) {
           l.log(metrics[midx].toString());
         }
+        if (metrics[midx].toString().length == 0) {
+          continue;
+        }
         var bits = metrics[midx].toString().split(':');
         var key = bits.shift()
                       .replace(/\s+/g, '_')

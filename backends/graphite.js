@@ -19,7 +19,7 @@ var debug;
 var flushInterval;
 var graphiteHost;
 var graphitePort;
-
+var statsPrefix = "";
 var graphiteStats = {};
 
 var post_stats = function graphite_post_stats(statString) {
@@ -35,8 +35,8 @@ var post_stats = function graphite_post_stats(statString) {
       });
       graphite.on('connect', function() {
         var ts = Math.round(new Date().getTime() / 1000);
-        statString += 'stats.statsd.graphiteStats.last_exception ' + last_exception + ' ' + ts + "\n";
-        statString += 'stats.statsd.graphiteStats.last_flush ' + last_flush + ' ' + ts + "\n";
+        statString += statsPrefix + '.statsd.graphiteStats.last_exception ' + last_exception + ' ' + ts + "\n";
+        statString += statsPrefix + '.statsd.graphiteStats.last_flush ' + last_flush + ' ' + ts + "\n";
         this.write(statString);
         this.end();
         graphiteStats.last_flush = Math.round(new Date().getTime() / 1000);
@@ -65,8 +65,9 @@ var flush_stats = function graphite_flush(ts, metrics) {
     var value = counters[key];
     var valuePerSecond = value / (flushInterval / 1000); // calculate "per second" rate
 
-    statString += 'stats.'        + key + ' ' + valuePerSecond + ' ' + ts + "\n";
-    statString += 'stats_counts.' + key + ' ' + value          + ' ' + ts + "\n";
+    statString += statsPrefix + '.' + key + ' ' + valuePerSecond + ' ' + ts + "\n";
+    // historically, this one is stored at the same level as stats.*
+    statString += (statsPrefix.length || "stats") + '_counts.' + key + ' ' + value + ' ' + ts + "\n";
 
     numStats += 1;
   }
@@ -104,9 +105,9 @@ var flush_stats = function graphite_flush(ts, metrics) {
 
         var clean_pct = '' + pct;
         clean_pct.replace('.', '_');
-        message += 'stats.timers.' + key + '.mean_'  + clean_pct + ' ' + mean           + ' ' + ts + "\n";
-        message += 'stats.timers.' + key + '.upper_' + clean_pct + ' ' + maxAtThreshold + ' ' + ts + "\n";
-        message += 'stats.timers.' + key + '.sum_' + clean_pct + ' ' + sum + ' ' + ts + "\n";
+        message += statsPrefix + '.timers.' + key + '.mean_'  + clean_pct + ' ' + mean           + ' ' + ts + "\n";
+        message += statsPrefix + '.timers.' + key + '.upper_' + clean_pct + ' ' + maxAtThreshold + ' ' + ts + "\n";
+        message += statsPrefix + '.timers.' + key + '.sum_' + clean_pct + ' ' + sum + ' ' + ts + "\n";
       }
 
       sum = cumulativeValues[count-1];
@@ -118,12 +119,12 @@ var flush_stats = function graphite_flush(ts, metrics) {
       }
       var stddev = Math.sqrt(sumOfDiffs / count);
 
-      message += 'stats.timers.' + key + '.std ' + stddev  + ' ' + ts + "\n";
-      message += 'stats.timers.' + key + '.upper ' + max   + ' ' + ts + "\n";
-      message += 'stats.timers.' + key + '.lower ' + min   + ' ' + ts + "\n";
-      message += 'stats.timers.' + key + '.count ' + count + ' ' + ts + "\n";
-      message += 'stats.timers.' + key + '.sum ' + sum  + ' ' + ts + "\n";
-      message += 'stats.timers.' + key + '.mean ' + mean + ' ' + ts + "\n";
+      message += statsPrefix + '.timers.' + key + '.std ' + stddev  + ' ' + ts + "\n";
+      message += statsPrefix + '.timers.' + key + '.upper ' + max   + ' ' + ts + "\n";
+      message += statsPrefix + '.timers.' + key + '.lower ' + min   + ' ' + ts + "\n";
+      message += statsPrefix + '.timers.' + key + '.count ' + count + ' ' + ts + "\n";
+      message += statsPrefix + '.timers.' + key + '.sum ' + sum  + ' ' + ts + "\n";
+      message += statsPrefix + '.timers.' + key + '.mean ' + mean + ' ' + ts + "\n";
       statString += message;
 
       numStats += 1;
@@ -131,12 +132,12 @@ var flush_stats = function graphite_flush(ts, metrics) {
   }
 
   for (key in gauges) {
-    statString += 'stats.gauges.' + key + ' ' + gauges[key] + ' ' + ts + "\n";
+    statString += statsPrefix + '.gauges.' + key + ' ' + gauges[key] + ' ' + ts + "\n";
     numStats += 1;
   }
 
-  statString += 'statsd.numStats ' + numStats + ' ' + ts + "\n";
-  statString += 'stats.statsd.graphiteStats.calculationtime ' + (Date.now() - starttime) + ' ' + ts + "\n";
+  statString += statsPrefix + '.statsd.numStats ' + numStats + ' ' + ts + "\n";
+  statString += statsPrefix + '.statsd.graphiteStats.calculationtime ' + (Date.now() - starttime) + ' ' + ts + "\n";
   post_stats(statString);
 };
 
@@ -150,6 +151,7 @@ exports.init = function graphite_init(startup_time, config, events) {
   debug = config.debug;
   graphiteHost = config.graphiteHost;
   graphitePort = config.graphitePort;
+  statsPrefix = config.statsPrefix || "";
 
   graphiteStats.last_flush = startup_time;
   graphiteStats.last_exception = startup_time;
