@@ -2,7 +2,7 @@ var fs           = require('fs'),
     net          = require('net'),
     temp         = require('temp'),
     spawn        = require('child_process').spawn,
-    sys          = require('sys'),
+    util          = require('util'),
     urlparse     = require('url').parse,
     _            = require('underscore'),
     dgram        = require('dgram'),
@@ -13,7 +13,7 @@ var fs           = require('fs'),
 var writeconfig = function(text,worker,cb,obj){
   temp.open({suffix: '-statsdconf.js'}, function(err, info) {
     if (err) throw err;
-    fs.write(info.fd, text);
+    fs.writeSync(info.fd, text);
     fs.close(info.fd, function(err) {
       if (err) throw err;
       worker(info.path,cb,obj);
@@ -42,7 +42,7 @@ var statsd_send = function(data,sock,host,port,cb){
 var collect_for = function(server,timeout,cb){
   var received = [];
   var in_flight = 0;
-  var start_time = new Date().getTime();
+  var timed_out = false;
   var collector = function(req,res){
     in_flight += 1;
     var body = '';
@@ -50,7 +50,7 @@ var collect_for = function(server,timeout,cb){
     req.on('end',function(){
       received = received.concat(body.split("\n"));
       in_flight -= 1;
-      if((in_flight < 1) && (new Date().getTime() > (start_time + timeout))){
+      if((in_flight < 1) && timed_out){
           server.removeListener('request',collector);
           cb(received);
       }
@@ -58,8 +58,9 @@ var collect_for = function(server,timeout,cb){
   }
 
   setTimeout(function (){
-    server.removeListener('connection',collector);
-    if((in_flight < 1)){
+    timed_out = true;
+    if((in_flight < 1)) {
+      server.removeListener('connection',collector);
       cb(received);
     }
   },timeout);
@@ -74,6 +75,7 @@ module.exports = {
     var configfile = "{graphService: \"graphite\"\n\
                ,  batch: 200 \n\
                ,  flushInterval: " + this.myflush + " \n\
+               ,  percentThreshold: 90\n\
                ,  port: 8125\n\
                ,  dumpMessages: false \n\
                ,  debug: false\n\
@@ -147,7 +149,7 @@ module.exports = {
           return data;
         });
         test.ok(_.include(_.map(entries,function(x) { return _.keys(x)[0] }),'statsd.numStats'),'graphite output includes numStats');
-        test.equal(_.find(entries, function(x) { return _.keys(x)[0] == 'statsd.numStats' })['statsd.numStats'],0);
+        test.equal(_.find(entries, function(x) { return _.keys(x)[0] == 'statsd.numStats' })['statsd.numStats'],2);
         test.done();
       });
     });
@@ -170,12 +172,12 @@ module.exports = {
             });
             var numstat_test = function(post){
               var mykey = 'statsd.numStats';
-              return _.include(_.keys(post),mykey) && (post[mykey] == 1);
+              return _.include(_.keys(post),mykey) && (post[mykey] == 3);
             };
             test.ok(_.any(hashes,numstat_test), 'statsd.numStats should be 1');
 
             var testtimervalue_test = function(post){
-              var mykey = 'stats.timers.a_test_value.mean';
+              var mykey = 'stats.timers.a_test_value.mean_90';
               return _.include(_.keys(post),mykey) && (post[mykey] == testvalue);
             };
             test.ok(_.any(hashes,testtimervalue_test), 'stats.timers.a_test_value.mean should be ' + testvalue);
@@ -203,7 +205,7 @@ module.exports = {
             });
             var numstat_test = function(post){
               var mykey = 'statsd.numStats';
-              return _.include(_.keys(post),mykey) && (post[mykey] == 1);
+              return _.include(_.keys(post),mykey) && (post[mykey] == 3);
             };
             test.ok(_.any(hashes,numstat_test), 'statsd.numStats should be 1');
 
