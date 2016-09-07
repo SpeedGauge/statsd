@@ -67,7 +67,7 @@ var flush_stats = function graphite_flush(ts, metrics) {
 
     statString += statsPrefix + '.' + key + ' ' + valuePerSecond + ' ' + ts + "\n";
     // historically, this one is stored at the same level as stats.*
-    statString += (statsPrefix.length || "stats") + '_counts.' + key + ' ' + value + ' ' + ts + "\n";
+    statString += (statsPrefix || "stats") + '_counts.' + key + ' ' + value + ' ' + ts + "\n";
 
     numStats += 1;
   }
