@@ -1,0 +1,38 @@
+/*
+
+Required Variables:
+
+  port:             StatsD listening port [default: 8125]
+
+Graphite Required Variables:
+
+(Leave these unset to avoid sending stats to Graphite.
+ Set debug flag and leave these unset to run in 'dry' debug mode -
+ useful for testing statsd clients without a Graphite server.)
+
+  graphiteHost:     hostname or IP of Graphite server
+  graphitePort:     port of Graphite server
+
+Optional Variables:
+
+  debug:            debug flag [default: false]
+  debugInterval:    interval to print debug information [ms, default: 10000]
+  dumpMessages:     log all incoming messages
+  flushInterval:    interval (in ms) to flush to Graphite
+  percentThreshold: for time information, calculate the Nth percentile
+                    [%, default: 90]
+
+*/
+{
+  graphitePort: 2003,
+  graphiteHost: "monitor.aws.speedgauge.net",
+  port: 8125,
+  flushInterval: 60000,
+  percentThreshold: 95,
+{% if USE_AWS|default('False') == 'True' %}
+  statsPrefix: "aws." + fs.readFileSync("/etc/availability-zone", encoding="utf-8").replace(/(\r\n|\n|\r)/gm,"") + "." 
+                      + fs.readFileSync("/etc/instance-id", encoding="utf-8").replace(/(\r\n|\n|\r)/gm,"") + ".stats"
+{% else %}
+  statsPrefix: "{{ SG_STATS_PREFIX|default('unknown_speedgauge_net.stats') }}"
+{% endif %}
+}
