@@ -27,6 +27,7 @@ for more details.
 
 import os
 import sys
+import json
 import base64
 import argparse
 
@@ -39,27 +40,51 @@ from dotenv import load_dotenv, find_dotenv
 redirect_logging()
 log = logbook.Logger(__file__)
 
+CHUNK_TEMPLATE_PROGRESS = "{id}: {status} {progress}"
+CHUNK_TEMPLATE_STATUS = "{id}: {status}"
+CHUNK_TEMPLATE_STREAM = "{stream}"
+CHUNK_TEMPLATES = [CHUNK_TEMPLATE_PROGRESS, CHUNK_TEMPLATE_STATUS, CHUNK_TEMPLATE_STREAM]
+
+
+def _log_stream(chunk):
+    try:
+        c = json.loads(chunk)
+    except:
+        log.debug(chunk)
+    else:
+        for t in CHUNK_TEMPLATES:
+            try:
+                # don't rely on logbook formatting because it will not raise the error
+                # it will log it instead
+                log.debug(t.format(**c))
+                return
+            except:
+                continue
+        log.debug(chunk)
+
 
 def _build(docker_client, path, registry, repo, tags, will_push=False):
     for tag in tags:
         t = '{}/{}:{}'.format(registry, repo, tag)
         log.info('building docker image {}', t)
-        docker_client.images.build(
+        for chunk in docker_client.api.build(
             path=path,
             tag=t,
             rm=True,
             pull=True,
             buildargs=build_args,
-        )
+        ):
+            _log_stream(chunk)
+
         log.info('completed building image')
         if will_push:
             log.info('attempting to push image to {}', registry)
-            for line in docker_client.images.push(
+            for chunk in docker_client.images.push(
                 '{}/{}'.format(registry, repo),
                 tag=tag,
                 stream=True
             ):
-                log.debug(line)
+                _log_stream(chunk)
             log.info('successfully pushed image')
 
 
@@ -134,13 +159,13 @@ if __name__ == '__main__':
         action='store_true',
         help='use amazon ECR rather than a vanilla docker registry')
     group.add_argument(
-        '--amazon-region',
+        '--aws-region',
         dest='amazon_region',
         help=(
-            'the amazon region, overrides BUILD_AMAZON_REGION environment variable. ' +
+            'the amazon region, overrides BUILD_AWS_REGION environment variable. ' +
             'If neither this flag nor the variable exist, will use the default region boto3 config.'))
     group.add_argument(
-        '--amazon-registry-ids',
+        '--aws-registry-ids',
         dest='amazon_registry_ids',
         nargs='*',
         help='amazon registry ids, if not provided, the default registy will be used')
@@ -190,7 +215,7 @@ if __name__ == '__main__':
             log.info('running in AMAZON mode')
             log.info('attempting to get ECR registry token')
             import boto3
-            amazon_client = boto3.client('ecr', region_name=args.amazon_region)
+            amazon_client = boto3.client('ecr', region_name=args.amazon_region or os.environ.get('BUILD_AWS_REGION'))
             if args.amazon_registry_ids:
                 response = amazon_client .get_authorization_token(registryIds=args.amazon_registry_ids)
             else:
